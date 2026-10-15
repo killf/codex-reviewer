@@ -1,0 +1,16 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "code-reviewer",
+  "version": "0.3.2",
+  "description": "Review local Git changes with a side-by-side diff in Codex.",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Reviewer",
+        "shortDescription": "Review local Git changes",
+        "longDescription": "Browse repository files and inspect worktree or branch diffs.",
+        "developerName": "Reviewer"
+      }
+    }
+  }
+}
