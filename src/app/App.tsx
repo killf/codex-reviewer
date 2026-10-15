@@ -1,5 +1,5 @@
 import { useApp } from "@modelcontextprotocol/ext-apps/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import { checkReviewFreshness, createReview, readFile } from "./api";
 import { DiffViewer } from "./DiffViewer";
 import { FileTree } from "./FileTree";
@@ -17,10 +17,15 @@ export function App() {
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [stale, setStale] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [layoutElement, setLayoutElement] = useState<HTMLDivElement | null>(null);
+  const [layoutWidth, setLayoutWidth] = useState(0);
+  const [treeWidth, setTreeWidth] = useState<number | null>(null);
+  const [resizingTree, setResizingTree] = useState(false);
+  const treeDrag = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const captureId = useRef(0);
   const fileId = useRef(0);
   const { app, error: appError } = useApp({
-    appInfo: { name: "Reviewer", version: "0.3.1" },
+    appInfo: { name: "Reviewer", version: "0.3.3" },
     capabilities: { availableDisplayModes: ["inline", "fullscreen"] },
     onAppCreated: (connection) => {
       connection.ontoolinput = ({ arguments: args }) => {
@@ -108,6 +113,23 @@ export function App() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [app, snapshot]);
 
+  // 3. 按面板尺寸限制文件树宽度；拖动时捕获指针，离开分隔线仍可继续调整。
+  useEffect(() => {
+    if (!layoutElement) return;
+    const observer = new ResizeObserver(([entry]) => setLayoutWidth(entry.contentRect.width));
+    observer.observe(layoutElement);
+    return () => observer.disconnect();
+  }, [layoutElement]);
+
+  const treeMaximum = Math.max(150, Math.floor(layoutWidth * 0.45));
+  const visibleTreeWidth = Math.min(treeMaximum, Math.max(150, treeWidth ?? (layoutWidth <= 650 ? 170 : 218)));
+  const resizeTree = (width: number) => setTreeWidth(Math.min(treeMaximum, Math.max(150, Math.round(width))));
+  const stopTreeResize = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    treeDrag.current = null;
+    setResizingTree(false);
+  };
+
   const projectName = rootPath?.replaceAll("\\", "/").split("/").filter(Boolean).at(-1);
   const message = appError?.message ?? error;
   const friendlyError = message?.includes("not a Git worktree") ? "当前项目不是 Git 仓库" : message?.includes("first commit") ? "完成首次提交后才能比较分支" : message;
@@ -121,9 +143,29 @@ export function App() {
     {stale && <div className="stale-banner" role="status"><span>有新的变更</span><button onClick={() => { if (rootPath) void capture(rootPath, scope); }} disabled={busy}>刷新</button></div>}
     {friendlyError && <div className={snapshot ? "error-banner" : "project-empty"} role="alert"><Icon name="diff" size={28} /><strong>{friendlyError}</strong>{!snapshot && <span>{rootPath}</span>}</div>}
     {!snapshot && !friendlyError && <div className="project-empty"><span className="loading-indicator" /><span>{busy ? "正在读取 Git 变更…" : "正在读取当前项目…"}</span></div>}
-    {snapshot && <div className="review-layout">
-      <aside className="tree-pane"><div className="pane-heading"><span>文件</span><span>{snapshot.changedFiles.length} 个变更</span></div>
+    {snapshot && <div ref={setLayoutElement} className={`review-layout${resizingTree ? " is-resizing" : ""}`}>
+      <aside id="reviewer-file-tree" className="tree-pane" style={{ width: visibleTreeWidth }}><div className="pane-heading"><span>文件</span><span>{snapshot.changedFiles.length} 个变更</span></div>
         <FileTree entries={snapshot.tree} changedFiles={snapshot.changedFiles} selectedPath={selectedPath} onSelect={(path) => { void selectFile(snapshot, path); }} /></aside>
+      <div className="tree-separator" role="separator" aria-label="调整文件树宽度" aria-orientation="vertical" tabIndex={0}
+        aria-controls="reviewer-file-tree" aria-valuemin={150} aria-valuemax={treeMaximum} aria-valuenow={visibleTreeWidth}
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          treeDrag.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: visibleTreeWidth };
+          setResizingTree(true);
+        }}
+        onPointerMove={(event) => {
+          const drag = treeDrag.current;
+          if (drag?.pointerId === event.pointerId) resizeTree(drag.startWidth + event.clientX - drag.startX);
+        }}
+        onPointerUp={stopTreeResize} onPointerCancel={stopTreeResize}
+        onLostPointerCapture={() => { treeDrag.current = null; setResizingTree(false); }}
+        onKeyDown={(event) => {
+          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+          event.preventDefault();
+          resizeTree(event.key === "Home" ? 150 : event.key === "End" ? treeMaximum : visibleTreeWidth + (event.key === "ArrowLeft" ? -10 : 10));
+        }} />
       <section className="diff-pane"><DiffViewer view={fileView} selectedPath={selectedPath} loading={loadingDiff} /></section>
     </div>}
   </main>;

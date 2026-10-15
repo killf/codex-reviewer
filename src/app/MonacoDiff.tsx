@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor/editor/editor.api";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker&inline";
 import "monaco-editor/languages/definitions/typescript/register.js";
@@ -13,6 +13,7 @@ import "monaco-editor/languages/definitions/css/register.js";
 import "monaco-editor/languages/definitions/shell/register.js";
 import "monaco-editor/languages/definitions/sql/register.js";
 import type { FileView } from "../server/types";
+import { Icon } from "./Icon";
 
 self.MonacoEnvironment = {
   getWorker: () => {
@@ -56,6 +57,8 @@ function applyTheme(element: HTMLElement) {
       "diffEditor.removedLineBackground": dark ? "#351b1e" : "#ffebe9",
       "diffEditor.insertedTextBackground": dark ? "#237b3e66" : "#abf2bd88",
       "diffEditor.removedTextBackground": dark ? "#bc344766" : "#ffb4b988",
+      "diffEditorOverview.insertedForeground": dark ? "#7acb97" : "#188348",
+      "diffEditorOverview.removedForeground": dark ? "#ef9098" : "#c63d4d",
       "diffEditor.diagonalFill": dark ? "#ffffff06" : "#00000005",
     },
   });
@@ -64,10 +67,13 @@ function applyTheme(element: HTMLElement) {
 
 export function MonacoView({ view }: { view: FileView }) {
   const container = useRef<HTMLDivElement>(null);
+  const diff = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
+  const [navigation, setNavigation] = useState({ current: 0, total: 0 });
   useEffect(() => {
     const element = container.current!;
     delete element.dataset.diffReady;
     delete element.dataset.fileReady;
+    setNavigation({ current: 0, total: 0 });
     applyTheme(element);
     const fileDiff = view.mode === "diff" ? view.fileDiff : null;
     const language = languageFor(view.mode === "file" ? view.path : view.fileDiff.newPath ?? view.fileDiff.oldPath ?? "");
@@ -83,16 +89,40 @@ export function MonacoView({ view }: { view: FileView }) {
       scrollbar: { verticalScrollbarSize: 9, horizontalScrollbarSize: 9, useShadows: false },
     };
     let editor: monaco.editor.IStandaloneCodeEditor | monaco.editor.IStandaloneDiffEditor;
-    let ready: monaco.IDisposable | undefined;
+    const listeners: monaco.IDisposable[] = [];
     if (original) {
       const diffEditor = monaco.editor.createDiffEditor(element, {
         ...options, originalEditable: false, renderSideBySide: true,
         useInlineViewWhenSpaceIsLimited: false, renderSideBySideInlineBreakpoint: 0,
-        renderOverviewRuler: false, renderGutterMenu: false, renderIndicators: false, renderMarginRevertIcon: false,
+        renderOverviewRuler: true, renderGutterMenu: false, renderIndicators: false, renderMarginRevertIcon: false,
         diffAlgorithm: "advanced", ignoreTrimWhitespace: false, maxComputationTime: 10_000,
         hideUnchangedRegions: { enabled: false },
       });
-      ready = diffEditor.onDidUpdateDiff(() => { element.dataset.diffReady = "true"; });
+      diff.current = diffEditor;
+      let changes: monaco.editor.ILineChange[] = [];
+      let revealedFirstChange = false;
+      // 1. 计数跟随修改侧光标；纯删除的空范围锚定下一行，并限制在文件内。
+      const updateNavigation = () => {
+        const line = diffEditor.getModifiedEditor().getPosition()?.lineNumber ?? 1;
+        let current = 0;
+        for (const [index, change] of changes.entries()) {
+          const start = Math.min(modified.getLineCount(), Math.max(1, change.modifiedStartLineNumber + Number(change.modifiedEndLineNumber === 0)));
+          if (line < start) break;
+          current = index + 1;
+        }
+        setNavigation((previous) => previous.current === current && previous.total === changes.length ? previous : { current, total: changes.length });
+      };
+      // 2. 差异计算完成后定位第一处；后续跳转和概览标记均复用 Monaco。
+      listeners.push(diffEditor.onDidUpdateDiff(() => {
+        changes = diffEditor.getLineChanges() ?? [];
+        element.dataset.diffReady = "true";
+        if (changes.length && !revealedFirstChange) {
+          revealedFirstChange = true;
+          diffEditor.revealFirstDiff();
+        }
+        updateNavigation();
+      }));
+      listeners.push(diffEditor.getModifiedEditor().onDidChangeCursorPosition(updateNavigation));
       diffEditor.setModel({ original, modified });
       editor = diffEditor;
     } else {
@@ -106,8 +136,17 @@ export function MonacoView({ view }: { view: FileView }) {
     scheme.addEventListener("change", changeTheme);
     return () => {
       observer.disconnect(); scheme.removeEventListener("change", changeTheme);
-      ready?.dispose(); editor.dispose(); original?.dispose(); modified.dispose();
+      diff.current = null;
+      listeners.forEach((listener) => listener.dispose());
+      editor.dispose(); original?.dispose(); modified.dispose();
     };
   }, [view]);
-  return <div className="monaco-diff-host" ref={container} data-file-mode={view.mode} aria-label={view.mode === "file" ? "只读文件" : "只读左右差异"} />;
+  return <>
+    {view.mode === "diff" && <nav className="diff-navigation" aria-label="文件内变更导航">
+      <span className="diff-navigation-count" role="status" aria-live="polite" aria-label={`第 ${navigation.current} 处，共 ${navigation.total} 处变更`}>{navigation.current} / {navigation.total}</span>
+      <button type="button" className="icon-button previous-change" aria-label="上一个变更" title="上一个变更" disabled={!navigation.total} onClick={() => diff.current?.goToDiff("previous")}><Icon name="chevron" /></button>
+      <button type="button" className="icon-button next-change" aria-label="下一个变更" title="下一个变更" disabled={!navigation.total} onClick={() => diff.current?.goToDiff("next")}><Icon name="chevron" /></button>
+    </nav>}
+    <div className="monaco-diff-host" ref={container} data-file-mode={view.mode} aria-label={view.mode === "file" ? "只读文件" : "只读左右差异"} />
+  </>;
 }
