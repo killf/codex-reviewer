@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "code-reviewer",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Review local Git changes with a side-by-side diff in Codex.",
   "extensions": {
     "com.openai": {

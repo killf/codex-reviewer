@@ -7,8 +7,32 @@ import { ScopePicker } from "./ScopePicker";
 import { Icon } from "./Icon";
 import type { FileView, ReviewScope, ReviewSnapshot } from "../server/types";
 
+function WelcomePage() {
+  return <section className="welcome-page" aria-labelledby="reviewer-welcome-title">
+    <div className="welcome-content">
+      <div className="welcome-icon"><Icon name="diff" size={32} /></div>
+      <h1 id="reviewer-welcome-title">欢迎使用 Reviewer</h1>
+      <p className="welcome-description">在 Codex 侧栏浏览项目文件，审查 Git 变更。</p>
+      <h2>开始使用</h2>
+      <ol className="welcome-steps">
+        <li><strong>进入项目会话</strong><p>在 Codex 中打开一个 Git 项目，并进入该项目下的会话。</p></li>
+        <li><strong>打开 Reviewer</strong><p>在项目会话中打开 Reviewer，项目会自动关联，无需填写文件夹路径。</p></li>
+        <li><strong>选择比较范围</strong><p>从顶部选择工作区变更，或选择要比较的分支，然后在文件树中打开文件。</p></li>
+      </ol>
+      <h2>审查方式</h2>
+      <ul className="welcome-features">
+        <li><strong>浏览文件</strong><p>拖动分隔线调整文件树宽度，通过文件颜色和状态标记识别变更。</p></li>
+        <li><strong>查看差异</strong><p>左右对比原文件与修改后的内容，查看行级和词级高亮。</p></li>
+        <li><strong>定位变更</strong><p>使用上一个、下一个变更按钮跳转，滚动条旁的色块提示变更位置。</p></li>
+        <li><strong>只读查看</strong><p>未纳入 Git 版本的文件和没有变更的文件，以单栏只读方式打开。</p></li>
+      </ul>
+    </div>
+  </section>;
+}
+
 export function App() {
   const [rootPath, setRootPath] = useState<string | null>(null);
+  const [contextMissing, setContextMissing] = useState(false);
   const [scope, setScope] = useState<ReviewScope>({ kind: "worktree" });
   const [snapshot, setSnapshot] = useState<ReviewSnapshot | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -25,7 +49,7 @@ export function App() {
   const captureId = useRef(0);
   const fileId = useRef(0);
   const { app, error: appError } = useApp({
-    appInfo: { name: "Reviewer", version: "0.3.3" },
+    appInfo: { name: "Reviewer", version: "0.3.4" },
     capabilities: { availableDisplayModes: ["inline", "fullscreen"] },
     onAppCreated: (connection) => {
       connection.ontoolinput = ({ arguments: args }) => {
@@ -33,7 +57,7 @@ export function App() {
       };
       connection.ontoolresult = ({ structuredContent }) => {
         if (typeof structuredContent?.rootPath === "string") setRootPath(structuredContent.rootPath);
-        else if (typeof structuredContent?.contextError === "string") setError(structuredContent.contextError);
+        else if (typeof structuredContent?.contextError === "string") setContextMissing(true);
       };
     },
   });
@@ -45,7 +69,7 @@ export function App() {
     void app.callServerTool({ name: "code-review.open", arguments: {} }).then((result) => {
       const context = result.structuredContent;
       if (!cancelled && typeof context?.rootPath === "string") setRootPath((previous) => previous ?? context.rootPath as string);
-      else if (!cancelled && typeof context?.contextError === "string") setError(context.contextError);
+      else if (!cancelled && typeof context?.contextError === "string") setContextMissing(true);
     }).catch((reason: unknown) => { if (!cancelled) setError((reason as Error).message); });
     return () => { cancelled = true; };
   }, [app, rootPath]);
@@ -142,7 +166,7 @@ export function App() {
     </header>
     {stale && <div className="stale-banner" role="status"><span>有新的变更</span><button onClick={() => { if (rootPath) void capture(rootPath, scope); }} disabled={busy}>刷新</button></div>}
     {friendlyError && <div className={snapshot ? "error-banner" : "project-empty"} role="alert"><Icon name="diff" size={28} /><strong>{friendlyError}</strong>{!snapshot && <span>{rootPath}</span>}</div>}
-    {!snapshot && !friendlyError && <div className="project-empty"><span className="loading-indicator" /><span>{busy ? "正在读取 Git 变更…" : "正在读取当前项目…"}</span></div>}
+    {!snapshot && !friendlyError && (!rootPath && contextMissing ? <WelcomePage /> : <div className="project-empty"><span className="loading-indicator" /><span>{busy ? "正在读取 Git 变更…" : "正在读取当前项目…"}</span></div>)}
     {snapshot && <div ref={setLayoutElement} className={`review-layout${resizingTree ? " is-resizing" : ""}`}>
       <aside id="reviewer-file-tree" className="tree-pane" style={{ width: visibleTreeWidth }}><div className="pane-heading"><span>文件</span><span>{snapshot.changedFiles.length} 个变更</span></div>
         <FileTree entries={snapshot.tree} changedFiles={snapshot.changedFiles} selectedPath={selectedPath} onSelect={(path) => { void selectFile(snapshot, path); }} /></aside>

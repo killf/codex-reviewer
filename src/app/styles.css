@@ -69,6 +69,16 @@ svg { flex: none; }
 .diff-empty, .project-empty { display: flex; flex: 1; flex-direction: column; justify-content: center; align-items: center; min-height: 160px; height: 100%; gap: 12px; padding: 24px; color: var(--muted-foreground); font-size: 12px; text-align: center; }
 .project-empty strong { color: var(--foreground); font-size: 13px; font-weight: 500; }
 .project-empty > span:last-child { max-width: 100%; overflow-wrap: anywhere; }
+.welcome-page { flex: 1; min-height: 0; overflow: auto; padding: clamp(24px, 4vw, 48px); }
+.welcome-content { width: 100%; max-width: 520px; margin: 0 auto; }
+.welcome-icon { display: inline-flex; margin-bottom: 16px; color: var(--muted-foreground); }
+.welcome-content h1 { margin: 0; font-size: 22px; font-weight: 600; line-height: 1.4; }
+.welcome-description { margin: 10px 0 28px; color: var(--muted-foreground); line-height: 1.7; }
+.welcome-content h2 { margin: 24px 0 16px; font-size: 13px; font-weight: 600; }
+.welcome-steps { display: grid; gap: 16px; margin: 0; padding-left: 22px; }
+.welcome-content strong { font-weight: 500; }
+.welcome-content li p { margin: 5px 0 0; color: var(--muted-foreground); line-height: 1.7; }
+.welcome-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; margin: 0; padding: 0; list-style: none; }
 .stale-banner, .error-banner { display: flex; align-items: center; flex: none; min-height: 32px; gap: 10px; padding: 5px 12px; border-bottom: 1px solid var(--border); color: var(--muted-foreground); font-size: 11px; }
 .stale-banner button { margin-left: auto; padding: 2px 6px; color: var(--foreground); background: transparent; border: 0; border-radius: 4px; }
 .stale-banner button:hover { background: var(--muted); }
@@ -77,4 +87,4 @@ svg { flex: none; }
 .loading-indicator { width: 16px; height: 16px; border: 1.5px solid var(--border); border-top-color: var(--muted-foreground); border-radius: 50%; animation: spin 1s linear infinite; }
 .is-busy svg { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 650px) { .current-branch { display: none; } .scope-picker select { max-width: 150px; } .review-toolbar { gap: 4px; padding: 0 8px; } }
+@media (max-width: 650px) { .current-branch { display: none; } .scope-picker select { max-width: 150px; } .review-toolbar { gap: 4px; padding: 0 8px; } .welcome-features { grid-template-columns: 1fr; } }
