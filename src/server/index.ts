@@ -12,7 +12,7 @@ const resourceUri = "ui://code-review/review.html";
 const resourceMimeType = "text/html;profile=mcp-app";
 
 export function createServer(): McpServer {
-  const server = new McpServer({ name: "code-reviewer", version: "0.3.4" });
+  const server = new McpServer({ name: "codex-reviewer", version: "0.3.7" });
   new OpenAIExtensions(server);
 
   server.registerTool(
@@ -24,20 +24,24 @@ export function createServer(): McpServer {
       annotations: { readOnlyHint: true },
       _meta: {
         ui: { resourceUri, visibility: ["app", "model"] },
-        "openai/ui": { entrypoints: [{ type: "global" }, { type: "thread" }] },
+        "openai/ui": { entrypoints: [{ type: "thread" }] },
       },
     },
     async ({ rootPath }, ctx) => {
-      let roots: Array<{ uri: string }> = [];
-      if (!rootPath && server.server.getClientCapabilities()?.roots) {
-        try { roots = (await server.server.listRoots(undefined, { timeout: 1500 })).roots; }
-        catch { /* 旧宿主没有 roots，按会话 ID 获取项目。 */ }
-      }
-      let project = resolveProjectRoot(rootPath, process.cwd(), roots);
+      // 1. 显式目录或当前会话的 cwd 优先，避免主项目 roots 覆盖会话所在的 worktree。
+      let project = rootPath?.trim() ? resolveProjectRoot(rootPath, process.cwd(), []) : null;
       const threadId = ctx.mcpReq._meta?.threadId;
       if (!project && typeof threadId === "string") {
         try { project = await readThreadProjectRoot(threadId); }
-        catch { /* 不以插件安装目录或其他会话的项目兜底。 */ }
+        catch { /* 会话元数据不可用时，继续尝试宿主项目目录。 */ }
+      }
+
+      // 2. 旧宿主仅提供 roots 时保留兼容，不以插件安装目录或其他会话兜底。
+      if (!project && server.server.getClientCapabilities()?.roots) {
+        try {
+          const { roots } = await server.server.listRoots(undefined, { timeout: 1500 });
+          project = resolveProjectRoot(undefined, process.cwd(), roots);
+        } catch { /* 缺少当前项目上下文时显示欢迎页面。 */ }
       }
       return {
         content: [{ type: "text", text: "Reviewer" }],

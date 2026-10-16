@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -63,7 +64,7 @@ test("Codex discovers this plugin's embedded review entrypoints and UI resource"
   }
 
   await request("initialize", {
-    clientInfo: { name: "code-reviewer-host-check", version: manifest.version },
+    clientInfo: { name: "codex-reviewer-host-check", version: manifest.version },
     capabilities: { experimentalApi: true },
   });
   child.stdin.write(`${JSON.stringify({ method: "initialized" })}\n`);
@@ -76,7 +77,7 @@ test("Codex discovers this plugin's embedded review entrypoints and UI resource"
   assert.ok(entrypoint, "Codex must preserve the app launcher in its discovered tool catalog.");
   assert.equal(entrypoint.title, "Reviewer");
   assert.ok(entrypoint._meta.ui.visibility.includes("model"), "Opening the panel must also be available from a user request in chat.");
-  assert.ok(entrypoint._meta["openai/ui"].entrypoints.some((entry) => entry.type === "thread"));
+  assert.deepEqual(entrypoint._meta["openai/ui"].entrypoints, [{ type: "thread" }]);
 
   // 临时运行时不写入会话历史，用于验证与桌面面板相同的带上下文调用路径。
   const fixture = await createFixtureRepository();
@@ -117,6 +118,8 @@ test("Codex discovers this plugin's embedded review entrypoints and UI resource"
     uri: entrypoint._meta.ui.resourceUri,
   });
   assert.equal(resource.contents[0].mimeType, "text/html;profile=mcp-app");
+  const builtApp = await readFile(path.join(rootPath, "dist", "app", "index.html"), "utf8");
+  assert.equal(createHash("sha256").update(resource.contents[0].text).digest("hex"), createHash("sha256").update(builtApp).digest("hex"), "Codex must serve the current built app, not a previous version");
   assert.match(resource.contents[0].text, /review-app/);
   assert.doesNotMatch(resource.contents[0].text, /Repository folder path/);
   assert.doesNotMatch(resource.contents[0].text, /data:font\/woff;base64,|CodexSeti/);

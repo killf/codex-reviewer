@@ -41,6 +41,17 @@ export function flattenTree(nodes: TreeNode[], expanded: Set<string>, depth = 0)
   return rows;
 }
 
+export function orderedChangedPaths(files: ChangedFile[]): string[] {
+  const tree = buildTree(files.map((file) => ({ path: (file.newPath ?? file.oldPath)!, kind: "file", changed: true })));
+  const paths: string[] = [];
+  const visit = (nodes: TreeNode[]) => nodes.forEach((node) => {
+    if (node.kind === "directory") visit(node.children);
+    else paths.push(node.path);
+  });
+  visit(tree);
+  return paths;
+}
+
 export function FileTree({ entries, changedFiles = [], selectedPath, onSelect }: {
   entries: TreeEntry[]; changedFiles?: ChangedFile[]; selectedPath: string | null;
   onSelect: (path: string, kind: TreeEntry["kind"]) => void;

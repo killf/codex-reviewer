@@ -3,7 +3,10 @@ import { MonacoView } from "./MonacoDiff";
 import { Icon } from "./Icon";
 import { FileIcon } from "./FileIcon";
 
-export function DiffViewer({ view, selectedPath, loading }: { view: FileView | null; selectedPath: string | null; loading: boolean }) {
+export function DiffViewer({ view, selectedPath, loading, initialChange, onBoundary }: {
+  view: FileView | null; selectedPath: string | null; loading: boolean;
+  initialChange: "first" | "last"; onBoundary: (direction: -1 | 1) => void;
+}) {
   if (loading) return <div className="diff-empty"><span className="loading-indicator" /><span>正在读取文件…</span></div>;
   if (!selectedPath) return <div className="diff-empty"><Icon name="file" size={32} /><span>选择文件查看</span></div>;
   if (!view) return <div className="diff-empty"><span>无法读取此文件</span></div>;
@@ -18,7 +21,7 @@ export function DiffViewer({ view, selectedPath, loading }: { view: FileView | n
     </header>
     {!supported ? <div className="diff-empty"><span>{reason}</span></div> : <>
       {diff && <div className="diff-column-labels"><span title={diff.oldPath ?? ""}>原文件{diff.oldPath && diff.oldPath !== diff.newPath ? ` · ${diff.oldPath}` : ""}</span><span title={diff.newPath ?? ""}>修改后</span></div>}
-      <MonacoView view={view} />
+      <MonacoView view={view} initialChange={initialChange} onBoundary={onBoundary} />
     </>}
   </section>;
 }

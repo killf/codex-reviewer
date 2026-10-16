@@ -7,7 +7,7 @@ const readJson = async (path) => JSON.parse(await readFile(new URL(path, import.
 test("portable plugin manifest identifies the Code Review plugin", async () => {
   const manifest = await readJson("../plugin.json");
 
-  assert.equal(manifest.name, "code-reviewer");
+  assert.equal(manifest.name, "codex-reviewer");
   assert.equal(manifest.extensions["com.openai"].interface.displayName, "Reviewer");
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.ok(manifest.description);
@@ -22,10 +22,10 @@ test("stdio server command points to the built local MCP server", async () => {
   assert.ok(server.args.some((arg) => arg.includes("${PLUGIN_ROOT}") && arg.endsWith("dist/server/index.js")));
 });
 
-test("server exposes global and thread review entrypoints", async () => {
+test("server exposes only a thread review entrypoint", async () => {
   const source = await readFile(new URL("../src/server/index.ts", import.meta.url), "utf8");
 
-  assert.ok(source.includes('type: "global"'));
+  assert.ok(!source.includes('type: "global"'));
   assert.ok(source.includes('type: "thread"'));
   assert.ok(source.includes("server.registerResource"));
   assert.ok(source.includes("server.registerTool"));

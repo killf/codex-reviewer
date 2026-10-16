@@ -65,9 +65,11 @@ function applyTheme(element: HTMLElement) {
   monaco.editor.setTheme("codex-review");
 }
 
-export function MonacoView({ view }: { view: FileView }) {
+export function MonacoView({ view, initialChange, onBoundary }: {
+  view: FileView; initialChange: "first" | "last"; onBoundary: (direction: -1 | 1) => void;
+}) {
   const container = useRef<HTMLDivElement>(null);
-  const diff = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
+  const navigate = useRef<((direction: -1 | 1) => void) | null>(null);
   const [navigation, setNavigation] = useState({ current: 0, total: 0 });
   useEffect(() => {
     const element = container.current!;
@@ -98,31 +100,66 @@ export function MonacoView({ view }: { view: FileView }) {
         diffAlgorithm: "advanced", ignoreTrimWhitespace: false, maxComputationTime: 10_000,
         hideUnchangedRegions: { enabled: false },
       });
-      diff.current = diffEditor;
       let changes: monaco.editor.ILineChange[] = [];
+      let currentIndex = -1;
+      let navigating = false;
       let revealedFirstChange = false;
-      // 1. 计数跟随修改侧光标；纯删除的空范围锚定下一行，并限制在文件内。
-      const updateNavigation = () => {
-        const line = diffEditor.getModifiedEditor().getPosition()?.lineNumber ?? 1;
+      const publishNavigation = () => {
+        const current = currentIndex + 1;
+        const total = changes.length;
+        setNavigation((previous) => previous.current === current && previous.total === total ? previous : { current, total });
+      };
+      // 1. 直接定位同一变更块的左右范围；纯新增、删除使用相邻行作为锚点。
+      const revealChange = (index: number) => {
+        const change = changes[index];
+        if (!change) return;
+        currentIndex = index;
+        navigating = true;
+        for (const [side, start, end] of [
+          [diffEditor.getOriginalEditor(), change.originalStartLineNumber, change.originalEndLineNumber],
+          [diffEditor.getModifiedEditor(), change.modifiedStartLineNumber, change.modifiedEndLineNumber],
+        ] as const) {
+          const lastLine = side.getModel()!.getLineCount();
+          const firstLine = Math.min(lastLine, Math.max(1, start + Number(end === 0)));
+          side.setPosition({ lineNumber: firstLine, column: 1 });
+          side.revealLinesInCenter(firstLine, Math.min(lastLine, Math.max(firstLine, end)), monaco.editor.ScrollType.Immediate);
+        }
+        navigating = false;
+        publishNavigation();
+      };
+      // 2. 从任意一侧选择代码后，计数和后续跳转都跟随该侧的位置。
+      const updateNavigation = (side: "original" | "modified") => {
+        if (navigating) return;
+        const sideEditor = side === "original" ? diffEditor.getOriginalEditor() : diffEditor.getModifiedEditor();
+        const line = sideEditor.getPosition()?.lineNumber ?? 1;
         let current = 0;
         for (const [index, change] of changes.entries()) {
-          const start = Math.min(modified.getLineCount(), Math.max(1, change.modifiedStartLineNumber + Number(change.modifiedEndLineNumber === 0)));
+          const first = side === "original" ? change.originalStartLineNumber : change.modifiedStartLineNumber;
+          const end = side === "original" ? change.originalEndLineNumber : change.modifiedEndLineNumber;
+          const start = Math.min(sideEditor.getModel()!.getLineCount(), Math.max(1, first + Number(end === 0)));
           if (line < start) break;
           current = index + 1;
         }
-        setNavigation((previous) => previous.current === current && previous.total === changes.length ? previous : { current, total: changes.length });
+        currentIndex = current - 1;
+        publishNavigation();
       };
-      // 2. 差异计算完成后定位第一处；后续跳转和概览标记均复用 Monaco。
+      navigate.current = (direction) => {
+        if (!changes.length) return;
+        const next = currentIndex + direction;
+        if (next < 0 || next >= changes.length) onBoundary(direction);
+        else revealChange(next);
+      };
+      // 3. 差异计算完成后定位第一处；概览标记仍由 Monaco 绘制。
       listeners.push(diffEditor.onDidUpdateDiff(() => {
         changes = diffEditor.getLineChanges() ?? [];
         element.dataset.diffReady = "true";
         if (changes.length && !revealedFirstChange) {
           revealedFirstChange = true;
-          diffEditor.revealFirstDiff();
-        }
-        updateNavigation();
+          revealChange(initialChange === "last" ? changes.length - 1 : 0);
+        } else updateNavigation("modified");
       }));
-      listeners.push(diffEditor.getModifiedEditor().onDidChangeCursorPosition(updateNavigation));
+      listeners.push(diffEditor.getOriginalEditor().onDidChangeCursorPosition(() => updateNavigation("original")));
+      listeners.push(diffEditor.getModifiedEditor().onDidChangeCursorPosition(() => updateNavigation("modified")));
       diffEditor.setModel({ original, modified });
       editor = diffEditor;
     } else {
@@ -136,17 +173,17 @@ export function MonacoView({ view }: { view: FileView }) {
     scheme.addEventListener("change", changeTheme);
     return () => {
       observer.disconnect(); scheme.removeEventListener("change", changeTheme);
-      diff.current = null;
+      navigate.current = null;
       listeners.forEach((listener) => listener.dispose());
       editor.dispose(); original?.dispose(); modified.dispose();
     };
-  }, [view]);
-  return <>
-    {view.mode === "diff" && <nav className="diff-navigation" aria-label="文件内变更导航">
-      <span className="diff-navigation-count" role="status" aria-live="polite" aria-label={`第 ${navigation.current} 处，共 ${navigation.total} 处变更`}>{navigation.current} / {navigation.total}</span>
-      <button type="button" className="icon-button previous-change" aria-label="上一个变更" title="上一个变更" disabled={!navigation.total} onClick={() => diff.current?.goToDiff("previous")}><Icon name="chevron" /></button>
-      <button type="button" className="icon-button next-change" aria-label="下一个变更" title="下一个变更" disabled={!navigation.total} onClick={() => diff.current?.goToDiff("next")}><Icon name="chevron" /></button>
-    </nav>}
+  }, [view, initialChange, onBoundary]);
+  return <div className="monaco-view">
     <div className="monaco-diff-host" ref={container} data-file-mode={view.mode} aria-label={view.mode === "file" ? "只读文件" : "只读左右差异"} />
-  </>;
+    {view.mode === "diff" && <nav className="diff-navigation" aria-label="变更导航">
+      <button type="button" className="diff-navigation-button previous-change" aria-label="上一个变更" title="上一处变更（可跨文件）" disabled={!navigation.total} onClick={() => navigate.current?.(-1)}><Icon name="chevron" size={14} /><span>上一处</span></button>
+      <span className="diff-navigation-count" role="status" aria-live="polite" aria-label={`第 ${navigation.current} 处，共 ${navigation.total} 处变更`}>{navigation.current} / {navigation.total}</span>
+      <button type="button" className="diff-navigation-button next-change" aria-label="下一个变更" title="下一处变更（可跨文件）" disabled={!navigation.total} onClick={() => navigate.current?.(1)}><span>下一处</span><Icon name="chevron" size={14} /></button>
+    </nav>}
+  </div>;
 }

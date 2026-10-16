@@ -29,6 +29,21 @@ export function readFile(app: App, snapshotId: string, path: string): Promise<Fi
   return call(app, "code-review.getFile", { snapshotId, path });
 }
 
+export async function readAdjacentDiff(app: App, snapshotId: string, paths: string[], currentPath: string, direction: -1 | 1): Promise<{ path: string; view: FileView } | null> {
+  const index = paths.indexOf(currentPath);
+  const start = index >= 0 ? index : direction > 0 ? -1 : 0;
+  // 最多遍历一轮；只读、不支持和无实际行级差异的文件不作为跳转目标。
+  for (let offset = 1; offset <= paths.length; offset++) {
+    const path = paths[(start + direction * offset + paths.length) % paths.length];
+    const view = await readFile(app, snapshotId, path);
+    if (view.mode !== "diff" || !view.fileDiff.supported) continue;
+    const before = (view.fileDiff.oldText ?? "").replace(/\r\n|\r/g, "\n");
+    const after = (view.fileDiff.newText ?? "").replace(/\r\n|\r/g, "\n");
+    if (before !== after) return { path, view };
+  }
+  return null;
+}
+
 export async function checkReviewFreshness(app: App, snapshotId: string): Promise<boolean> {
   const result = await call<{ stale: boolean }>(app, "code-review.isReviewStale", { snapshotId });
   return result.stale;

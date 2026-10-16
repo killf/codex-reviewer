@@ -14,10 +14,21 @@ svg { flex: none; }
 .project-name svg, .current-branch { color: var(--muted-foreground); }
 .current-branch { overflow: hidden; max-width: 140px; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .toolbar-controls { display: flex; align-items: center; gap: 5px; margin-left: auto; }
-.scope-picker { display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 5px; color: var(--muted-foreground); }
-.scope-picker:hover { background: var(--muted); }
-.scope-picker select { max-width: 210px; height: 25px; border: 0; outline: 0; background: transparent; color: var(--foreground); font-size: 12px; }
-.scope-picker option { background: var(--background); }
+.scope-picker { position: relative; min-width: 0; }
+.scope-trigger { display: flex; align-items: center; gap: 6px; max-width: 250px; height: 31px; padding: 3px 6px; border: 0; border-radius: 5px; background: transparent; font-size: 12px; }
+.scope-trigger:hover { background: var(--muted); }
+.scope-trigger > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.scope-trigger > svg:first-child { color: var(--muted-foreground); }
+.scope-trigger > svg:last-child { transform: rotate(90deg); }
+.scope-popover { position: absolute; z-index: 30; top: calc(100% + 5px); right: 0; width: 300px; max-width: calc(100vw - 24px); padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--background, #181818); box-shadow: 0 6px 24px #00000040; }
+.scope-search { width: 100%; height: 32px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--muted); color: var(--foreground); font: inherit; outline-color: var(--ring); }
+.scope-search::placeholder { color: var(--muted-foreground); }
+.scope-options { max-height: min(320px, calc(100vh - 150px)); overflow: auto; margin-top: 5px; scrollbar-width: thin; }
+.scope-option { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 6px 9px; border: 0; border-radius: 4px; background: transparent; color: var(--foreground); text-align: left; }
+.scope-option > span:first-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.scope-option.is-active { background: var(--muted); }
+.scope-selected { margin-left: auto; color: var(--muted-foreground); }
+.scope-no-results { padding: 12px 9px; color: var(--muted-foreground); }
 .icon-button { display: inline-flex; justify-content: center; align-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted-foreground); }
 .icon-button:hover { background: var(--muted); color: var(--foreground); }
 .review-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
@@ -60,11 +71,15 @@ svg { flex: none; }
 .diff-column-labels { display: grid; grid-template-columns: 1fr 1fr; flex: none; height: 29px; border-bottom: 1px solid var(--border); color: var(--muted-foreground); font-size: 11px; }
 .diff-column-labels span { padding: 5px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .diff-column-labels span + span { border-left: 1px solid var(--border); }
-.diff-navigation { display: flex; align-items: center; justify-content: flex-end; flex: none; gap: 3px; height: 30px; padding: 0 6px; border-bottom: 1px solid var(--border); }
-.diff-navigation-count { min-width: 45px; margin-right: 3px; color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; }
+.monaco-view { position: relative; flex: 1; min-height: 0; min-width: 0; width: 100%; isolation: isolate; }
+.diff-navigation { position: absolute; z-index: 5; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid color-mix(in srgb, var(--foreground) 25%, transparent); border-radius: 10px; background: var(--background, #181818); box-shadow: 0 4px 20px #00000040; white-space: nowrap; }
+.diff-navigation-button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--muted); color: var(--foreground); font-size: 12px; font-weight: 500; }
+.diff-navigation-button:hover:not(:disabled) { background: color-mix(in srgb, var(--foreground) 14%, var(--background)); }
+.diff-navigation-count { min-width: 40px; color: var(--foreground); font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; }
 .previous-change svg { transform: rotate(-90deg); }
 .next-change svg { transform: rotate(90deg); }
-.monaco-diff-host { flex: 1; min-height: 0; width: 100%; background: var(--background); color: var(--foreground); }
+.monaco-diff-host { position: relative; z-index: 0; height: 100%; min-height: 0; width: 100%; background: var(--background); color: var(--foreground); }
+.monaco-diff-host[data-file-mode="diff"]:not([data-diff-ready="true"]) { visibility: hidden; }
 .monaco-editor, .monaco-editor .overflow-guard { border-radius: 0; }
 .diff-empty, .project-empty { display: flex; flex: 1; flex-direction: column; justify-content: center; align-items: center; min-height: 160px; height: 100%; gap: 12px; padding: 24px; color: var(--muted-foreground); font-size: 12px; text-align: center; }
 .project-empty strong { color: var(--foreground); font-size: 13px; font-weight: 500; }
@@ -87,4 +102,5 @@ svg { flex: none; }
 .loading-indicator { width: 16px; height: 16px; border: 1.5px solid var(--border); border-top-color: var(--muted-foreground); border-radius: 50%; animation: spin 1s linear infinite; }
 .is-busy svg { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 650px) { .current-branch { display: none; } .scope-picker select { max-width: 150px; } .review-toolbar { gap: 4px; padding: 0 8px; } .welcome-features { grid-template-columns: 1fr; } }
+@media (max-width: 650px) { .current-branch { display: none; } .scope-trigger { max-width: 190px; } .review-toolbar { gap: 4px; padding: 0 8px; } .welcome-features { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .diff-navigation { gap: 4px; padding: 5px; } .diff-navigation-button { gap: 2px; padding: 6px 4px; font-size: 11px; } .diff-navigation-count { min-width: 28px; font-size: 10px; } }

@@ -12,9 +12,9 @@ test("local Codex marketplace starts the review app and serves Git diff tools", 
   const rootPath = process.cwd();
   const marketplacePath = path.join(rootPath, ".agents", "plugins", "marketplace.json");
   const marketplace = JSON.parse(await readFile(marketplacePath, "utf8"));
-  const pluginEntry = marketplace.plugins.find((plugin) => plugin.name === "code-reviewer");
+  const pluginEntry = marketplace.plugins.find((plugin) => plugin.name === "codex-reviewer");
 
-  assert.ok(pluginEntry, "local marketplace must expose code-reviewer");
+  assert.ok(pluginEntry, "local marketplace must expose codex-reviewer");
   assert.equal(pluginEntry.source.source, "local");
   assert.ok(pluginEntry.policy.installation);
   assert.ok(pluginEntry.policy.authentication);
@@ -22,7 +22,7 @@ test("local Codex marketplace starts the review app and serves Git diff tools", 
 
   const pluginRoot = path.resolve(rootPath, pluginEntry.source.path);
   const manifest = JSON.parse(await readFile(path.join(pluginRoot, "plugin.json"), "utf8"));
-  assert.equal(manifest.name, "code-reviewer");
+  assert.equal(manifest.name, "codex-reviewer");
 
   const fixture = await createFixtureRepository();
   t.after(fixture.cleanup);
@@ -42,7 +42,7 @@ test("local Codex marketplace starts the review app and serves Git diff tools", 
   const tools = await client.listTools();
   const openTool = tools.tools.find((tool) => tool.name === "code-review.open");
   assert.ok(openTool);
-  assert.deepEqual(openTool._meta["openai/ui"].entrypoints.map((entry) => entry.type), ["global", "thread"]);
+  assert.deepEqual(openTool._meta["openai/ui"].entrypoints, [{ type: "thread" }]);
 
   const appResource = await client.readResource({ uri: "ui://code-review/review.html" });
   assert.match(appResource.contents[0].text, /Reviewer/);

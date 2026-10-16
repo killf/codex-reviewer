@@ -1,8 +1,8 @@
 import { useApp } from "@modelcontextprotocol/ext-apps/react";
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
-import { checkReviewFreshness, createReview, readFile } from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { checkReviewFreshness, createReview, readAdjacentDiff, readFile } from "./api";
 import { DiffViewer } from "./DiffViewer";
-import { FileTree } from "./FileTree";
+import { FileTree, orderedChangedPaths } from "./FileTree";
 import { ScopePicker } from "./ScopePicker";
 import { Icon } from "./Icon";
 import type { FileView, ReviewScope, ReviewSnapshot } from "../server/types";
@@ -23,7 +23,7 @@ function WelcomePage() {
       <ul className="welcome-features">
         <li><strong>浏览文件</strong><p>拖动分隔线调整文件树宽度，通过文件颜色和状态标记识别变更。</p></li>
         <li><strong>查看差异</strong><p>左右对比原文件与修改后的内容，查看行级和词级高亮。</p></li>
-        <li><strong>定位变更</strong><p>使用上一个、下一个变更按钮跳转，滚动条旁的色块提示变更位置。</p></li>
+        <li><strong>定位变更</strong><p>使用上一处、下一处按钮连续跳转变更，支持跨文件；滚动条旁的色块提示变更位置。</p></li>
         <li><strong>只读查看</strong><p>未纳入 Git 版本的文件和没有变更的文件，以单栏只读方式打开。</p></li>
       </ul>
     </div>
@@ -37,6 +37,7 @@ export function App() {
   const [snapshot, setSnapshot] = useState<ReviewSnapshot | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileView, setFileView] = useState<FileView | null>(null);
+  const [initialChange, setInitialChange] = useState<"first" | "last">("first");
   const [busy, setBusy] = useState(false);
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [stale, setStale] = useState(false);
@@ -49,7 +50,7 @@ export function App() {
   const captureId = useRef(0);
   const fileId = useRef(0);
   const { app, error: appError } = useApp({
-    appInfo: { name: "Reviewer", version: "0.3.4" },
+    appInfo: { name: "Reviewer", version: "0.3.7" },
     capabilities: { availableDisplayModes: ["inline", "fullscreen"] },
     onAppCreated: (connection) => {
       connection.ontoolinput = ({ arguments: args }) => {
@@ -79,6 +80,7 @@ export function App() {
     const request = ++fileId.current;
     setError(null);
     setSelectedPath(path);
+    setInitialChange("first");
     setFileView(null);
     setLoadingDiff(true);
     try {
@@ -90,6 +92,25 @@ export function App() {
       if (request === fileId.current) setLoadingDiff(false);
     }
   }, [app]);
+
+  const navigationPaths = useMemo(() => snapshot ? orderedChangedPaths(snapshot.changedFiles) : [], [snapshot]);
+  const navigateFile = useCallback(async (direction: -1 | 1) => {
+    if (!app || !snapshot || !selectedPath) return;
+    const request = ++fileId.current;
+    setError(null);
+    setLoadingDiff(true);
+    try {
+      const next = await readAdjacentDiff(app, snapshot.snapshotId, navigationPaths, selectedPath, direction);
+      if (request !== fileId.current || !next) return;
+      setInitialChange(direction > 0 ? "first" : "last");
+      setSelectedPath(next.path);
+      setFileView(next.view);
+    } catch (reason) {
+      if (request === fileId.current) setError((reason as Error).message);
+    } finally {
+      if (request === fileId.current) setLoadingDiff(false);
+    }
+  }, [app, snapshot, selectedPath, navigationPaths]);
 
   const capture = useCallback(async (folder: string, nextScope: ReviewScope) => {
     if (!app) return;
@@ -190,7 +211,7 @@ export function App() {
           event.preventDefault();
           resizeTree(event.key === "Home" ? 150 : event.key === "End" ? treeMaximum : visibleTreeWidth + (event.key === "ArrowLeft" ? -10 : 10));
         }} />
-      <section className="diff-pane"><DiffViewer view={fileView} selectedPath={selectedPath} loading={loadingDiff} /></section>
+      <section className="diff-pane"><DiffViewer view={fileView} selectedPath={selectedPath} loading={loadingDiff} initialChange={initialChange} onBoundary={navigateFile} /></section>
     </div>}
   </main>;
 }

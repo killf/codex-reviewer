@@ -1,6 +1,6 @@
 {
-  "name": "codex-code-reviewer",
-  "version": "0.3.4",
+  "name": "codex-reviewer",
+  "version": "0.3.7",
   "private": true,
   "overrides": {
     "dompurify": "^3.4.17"

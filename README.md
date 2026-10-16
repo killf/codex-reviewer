@@ -23,7 +23,7 @@ From this folder, register the local marketplace and install its plugin:
 
 ```powershell
 codex plugin marketplace add .
-codex plugin add code-reviewer@codex-reviewer-local
+codex plugin add codex-reviewer@codex-reviewer-local
 ```
 
 Restart Codex Desktop if the marketplace or plugin entry does not appear. After rebuilding, refresh the local marketplace to install the latest files.
