@@ -8,6 +8,7 @@ test("portable plugin manifest identifies the Code Review plugin", async () => {
   const manifest = await readJson("../plugin.json");
 
   assert.equal(manifest.name, "codex-reviewer");
+  assert.equal(manifest.license, "MIT");
   assert.equal(manifest.extensions["com.openai"].interface.displayName, "Reviewer");
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.ok(manifest.description);
