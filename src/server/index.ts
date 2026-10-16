@@ -12,7 +12,7 @@ const resourceUri = "ui://code-review/review.html";
 const resourceMimeType = "text/html;profile=mcp-app";
 
 export function createServer(): McpServer {
-  const server = new McpServer({ name: "codex-reviewer", version: "0.3.8" });
+  const server = new McpServer({ name: "codex-reviewer", version: "0.3.9" });
   new OpenAIExtensions(server);
 
   server.registerTool(
