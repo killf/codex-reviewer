@@ -118,6 +118,9 @@ test("Codex discovers this plugin's embedded review entrypoints and UI resource"
     uri: entrypoint._meta.ui.resourceUri,
   });
   assert.equal(resource.contents[0].mimeType, "text/html;profile=mcp-app");
+  assert.deepEqual(resource.contents[0]._meta["openai/ui"], {
+    preferredDisplayMode: "fullscreen", availableDisplayModes: ["fullscreen"],
+  });
   const builtApp = await readFile(path.join(rootPath, "dist", "app", "index.html"), "utf8");
   assert.equal(createHash("sha256").update(resource.contents[0].text).digest("hex"), createHash("sha256").update(builtApp).digest("hex"), "Codex must serve the current built app, not a previous version");
   assert.match(resource.contents[0].text, /review-app/);

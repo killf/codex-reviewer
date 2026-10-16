@@ -50,8 +50,8 @@ export function App() {
   const captureId = useRef(0);
   const fileId = useRef(0);
   const { app, error: appError } = useApp({
-    appInfo: { name: "Reviewer", version: "0.3.7" },
-    capabilities: { availableDisplayModes: ["inline", "fullscreen"] },
+    appInfo: { name: "Reviewer", version: "0.3.8" },
+    capabilities: { availableDisplayModes: ["fullscreen"] },
     onAppCreated: (connection) => {
       connection.ontoolinput = ({ arguments: args }) => {
         if (typeof args?.rootPath === "string") setRootPath(args.rootPath);

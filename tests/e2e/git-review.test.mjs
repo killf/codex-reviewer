@@ -45,6 +45,9 @@ test("local Codex marketplace starts the review app and serves Git diff tools", 
   assert.deepEqual(openTool._meta["openai/ui"].entrypoints, [{ type: "thread" }]);
 
   const appResource = await client.readResource({ uri: "ui://code-review/review.html" });
+  assert.deepEqual(appResource.contents[0]._meta["openai/ui"], {
+    preferredDisplayMode: "fullscreen", availableDisplayModes: ["fullscreen"],
+  });
   assert.match(appResource.contents[0].text, /Reviewer/);
 
   const repositoryResult = await client.callTool({
@@ -118,6 +121,9 @@ test("installed plugin cache can start its MCP server and serve the bundled app"
   const tools = await client.listTools();
   assert.ok(tools.tools.some((tool) => tool.name === "code-review.getReview"));
   const resource = await client.readResource({ uri: "ui://code-review/review.html" });
+  assert.deepEqual(resource.contents[0]._meta["openai/ui"], {
+    preferredDisplayMode: "fullscreen", availableDisplayModes: ["fullscreen"],
+  });
   assert.ok(resource.contents[0].text.includes("review-app"));
   const repository = await client.callTool({
     name: "code-review.listRepositories",
